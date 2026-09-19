@@ -1,0 +1,718 @@
+# -*- coding: utf-8 -*-
+# Five-second no-clipping control based on IPSC_0.001_budget_diagnostic.py.
+# The equations, boundary conditions, initial state, mesh and time step are
+# unchanged. Only scalar clipping is disabled; this starts afresh at t = 0.
+# Legacy *_postclip and clipping CSV columns are retained for comparison:
+# no clipping is applied, so vf_postclip_m2 == vf_raw_m2 and clipping_change=0.
+# Syntax and control flow have been checked; no FEniCS solve is claimed here.
+from fenics import *
+import math
+import csv
+import json
+import hashlib
+import os
+import numpy as np
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+
+parameters["std_out_all_processes"] = False
+
+
+# Geometry
+
+Lx = 0.60
+Ly = 0.30
+
+d_nozzle = 0.01
+x_centre = Lx / 2.0
+xL = x_centre - d_nozzle / 2.0
+xR = x_centre + d_nozzle / 2.0
+
+left_return_width = xL
+right_return_width = Lx - xR
+
+tol = 1e-10
+
+
+# Mesh
+
+nx, ny = 120, 60
+mesh = RectangleMesh(Point(0.0, 0.0), Point(Lx, Ly), nx, ny)
+
+
+# Boundary markers
+
+# 1 = central nozzle
+# 2 = broad left return flow
+# 3 = broad right return flow
+# 4 = stationary side walls and glass ceiling
+
+class Nozzle(SubDomain):
+    def inside(self, x, on_boundary):
+        return (
+            on_boundary
+            and near(x[1], 0.0, tol)
+            and xL - tol <= x[0] <= xR + tol
+        )
+
+
+class LeftReturn(SubDomain):
+    def inside(self, x, on_boundary):
+        return (
+            on_boundary
+            and near(x[1], 0.0, tol)
+            and x[0] <= xL + tol
+        )
+
+
+class RightReturn(SubDomain):
+    def inside(self, x, on_boundary):
+        return (
+            on_boundary
+            and near(x[1], 0.0, tol)
+            and x[0] >= xR - tol
+        )
+
+
+class SolidWalls(SubDomain):
+    def inside(self, x, on_boundary):
+        return (
+            on_boundary
+            and (
+                near(x[0], 0.0, tol)
+                or near(x[0], Lx, tol)
+                or near(x[1], Ly, tol)
+            )
+        )
+
+
+class PressurePin(SubDomain):
+    def inside(self, x, on_boundary):
+        # Fix only the pressure gauge at the upper-left mesh vertex.
+        return near(x[0], 0.0, tol) and near(x[1], Ly, tol)
+
+
+boundaries = MeshFunction(
+    "size_t", mesh, mesh.topology().dim() - 1, 0
+)
+
+# Mark walls first, then overwrite the bottom openings.
+SolidWalls().mark(boundaries, 4)
+LeftReturn().mark(boundaries, 2)
+RightReturn().mark(boundaries, 3)
+Nozzle().mark(boundaries, 1)
+
+
+ds_sub = Measure("ds", domain=mesh, subdomain_data=boundaries)
+normal = FacetNormal(mesh)
+
+
+# Boundary-length diagnostics
+
+nozzle_length = assemble(Constant(1.0) * ds_sub(1))
+left_return_length = assemble(Constant(1.0) * ds_sub(2))
+right_return_length = assemble(Constant(1.0) * ds_sub(3))
+solid_wall_length = assemble(Constant(1.0) * ds_sub(4))
+
+if rank == 0:
+    print("Boundary lengths:", flush=True)
+    print(
+        "  Nozzle       =", nozzle_length,
+        "(expected 0.01)", flush=True
+    )
+    print(
+        "  Left return  =", left_return_length,
+        "(expected 0.295)", flush=True
+    )
+    print(
+        "  Right return =", right_return_length,
+        "(expected 0.295)", flush=True
+    )
+    print(
+        "  Solid walls  =", solid_wall_length,
+        "(expected 1.20)", flush=True
+    )
+
+
+# Function spaces
+
+V = VectorFunctionSpace(mesh, "CG", 2)
+P = FunctionSpace(mesh, "CG", 1)
+C = FunctionSpace(mesh, "CG", 1)
+
+# Velocity trial and test functions
+u = TrialFunction(V)
+v = TestFunction(V)
+
+# Pressure trial and test functions
+p = TrialFunction(P)
+q = TestFunction(P)
+
+# Concentration trial and test functions
+c_trial = TrialFunction(C)
+c_test = TestFunction(C)
+
+
+# Time-dependent solution fields
+
+u_n = Function(V)
+u_star = Function(V)
+u_new = Function(V)
+
+p_n = Function(P)
+p_new = Function(P)
+
+c_n = Function(C)
+c_new = Function(C)
+
+
+# Parameters
+
+dt_value = 0.001
+
+# Short control run: 5000 steps x 0.001 s = 5 s of simulated time.
+# Inspect this result before considering a longer run from the initial state.
+num_steps = 5000
+write_every = 250  # Fields every 0.25 s, plus the first step.
+
+dt = Constant(dt_value)
+nu_visc = Constant(1e-6)
+D = Constant(1e-7)
+
+g = Constant(9.81)
+beta = Constant(-6.27e-3)
+c0 = Constant(1.0)
+
+
+# Initial conditions
+
+u_n.assign(Constant((0.0, 0.0)))
+u_star.assign(Constant((0.0, 0.0)))
+u_new.assign(Constant((0.0, 0.0)))
+
+p_n.assign(Constant(0.0))
+p_new.assign(Constant(0.0))
+
+# Ambient salt water
+c_n.assign(Constant(1.0))
+c_new.assign(Constant(1.0))
+
+
+# Balanced inlet and return-flow profiles
+
+U_in = 0.001
+
+# For a parabolic profile, Q = (2/3) U_max width.
+# Two broad return regions remove exactly the nozzle flux.
+U_return = U_in * d_nozzle / (2.0 * left_return_width)
+
+u_in = Expression(
+    (
+        "0.0",
+        "4.0*amp*U*(x[0]-xL)*(xR-x[0])/pow(xR-xL,2)"
+    ),
+    degree=2,
+    amp=0.0,
+    U=U_in,
+    xL=xL,
+    xR=xR
+)
+
+u_return_left = Expression(
+    (
+        "0.0",
+        "-4.0*amp*U*(x[0]-xA)*(xB-x[0])/pow(xB-xA,2)"
+    ),
+    degree=2,
+    amp=0.0,
+    U=U_return,
+    xA=0.0,
+    xB=xL
+)
+
+u_return_right = Expression(
+    (
+        "0.0",
+        "-4.0*amp*U*(x[0]-xA)*(xB-x[0])/pow(xB-xA,2)"
+    ),
+    degree=2,
+    amp=0.0,
+    U=U_return,
+    xA=xR,
+    xB=Lx
+)
+
+if rank == 0:
+    print("Velocity settings:", flush=True)
+    print("  Maximum nozzle velocity =", U_in, flush=True)
+    print("  Maximum return velocity =", U_return, flush=True)
+    print(
+        "  Return/nozzle ratio      =", U_return / U_in,
+        flush=True
+    )
+
+
+# Boundary conditions
+
+bcu = [
+    DirichletBC(V, u_in, boundaries, 1),
+    DirichletBC(V, u_return_left, boundaries, 2),
+    DirichletBC(V, u_return_right, boundaries, 3),
+    DirichletBC(V, Constant((0.0, 0.0)), boundaries, 4)
+]
+
+# Pressure is physically determined only up to an additive constant.
+# Pinning one point supplies a gauge without imposing pressure on a wall.
+bcp = [
+    DirichletBC(
+        P,
+        Constant(0.0),
+        PressurePin(),
+        method="pointwise"
+    )
+]
+
+# Fresh water enters through the nozzle. No scalar value is imposed
+# on the return boundaries, so fluid leaves with its local concentration.
+bcc = [
+    DirichletBC(C, Constant(0.0), boundaries, 1)
+]
+
+
+# IPCS step 1: tentative velocity
+
+# Semi-implicit Oseen advection is retained from the working base:
+# u_n convects the new tentative velocity.
+
+f_buoy = as_vector((0.0, g * beta * (c_n - c0)))
+
+F1 = (
+    (1.0 / dt) * inner(u - u_n, v) * dx
+    + inner(dot(u_n, nabla_grad(u)), v) * dx
+    + nu_visc * inner(grad(u), grad(v)) * dx
+    - p_n * div(v) * dx
+    - inner(f_buoy, v) * dx
+)
+
+a1 = lhs(F1)
+L1 = rhs(F1)
+
+
+# IPCS step 2: pressure correction
+
+# grad(p_new - p_n) enforces the divergence correction.
+
+a2 = inner(grad(p), grad(q)) * dx
+L2 = (
+    inner(grad(p_n), grad(q)) * dx
+    - (1.0 / dt) * div(u_star) * q * dx
+)
+
+
+# IPCS step 3: velocity correction
+
+a3 = inner(u, v) * dx
+L3 = (
+    inner(u_star, v) * dx
+    - dt * inner(grad(p_new - p_n), v) * dx
+)
+
+# The pressure matrix is constant; the velocity-correction matrix is
+# reassembled with the current nonzero boundary values.
+A2 = assemble(a2)
+for bc in bcp:
+    bc.apply(A2)
+
+
+# Scalar transport with SUPG, using the corrected velocity
+
+h = CellDiameter(mesh)
+u_mag = sqrt(dot(u_new, u_new) + DOLFIN_EPS)
+
+tau = 1.0 / sqrt(
+    (2.0 / dt) ** 2
+    + (2.0 * u_mag / h) ** 2
+    + (4.0 * D / (h * h)) ** 2
+)
+
+r_c = (
+    (1.0 / dt) * (c_trial - c_n)
+    + dot(u_new, grad(c_trial))
+    - div(D * grad(c_trial))
+)
+
+F_c = (
+    (1.0 / dt) * (c_trial - c_n) * c_test * dx
+    + dot(u_new, grad(c_trial)) * c_test * dx
+    + D * dot(grad(c_trial), grad(c_test)) * dx
+    + tau * r_c * dot(u_new, grad(c_test)) * dx
+)
+
+a_c = lhs(F_c)
+L_c = rhs(F_c)
+
+
+# Solvers
+
+tentative_solver = LUSolver()
+pressure_solver = LUSolver(A2)
+correction_solver = LUSolver()
+scalar_solver = LUSolver()
+
+
+
+
+# Set CARTESIAN_NOCLIP_OUTPUT to choose another NEW/EMPTY diagnostic directory.
+# The original run directory is explicitly protected.
+original_folder = "/user/work/kn22417/output_physical_plume_ipcs_1"
+folder = os.environ.get(
+    "CARTESIAN_NOCLIP_OUTPUT", original_folder + "_no_clipping_5s"
+)
+folder_error = None
+if rank == 0:
+    try:
+        if os.path.realpath(folder) == os.path.realpath(original_folder):
+            raise RuntimeError("Refusing to write into the original simulation directory.")
+        if os.path.exists(folder) and (not os.path.isdir(folder) or os.listdir(folder)):
+            raise RuntimeError("Diagnostic output directory must be new or empty: " + folder)
+        os.makedirs(folder, exist_ok=True)
+    except Exception as exc:
+        folder_error = str(exc)
+folder_error = comm.bcast(folder_error, root=0)
+if folder_error is not None:
+    raise RuntimeError(folder_error)
+comm.Barrier()
+File(os.path.join(folder, "boundary_markers_ipcs_broad_return.pvd")) << boundaries
+
+xdmf_u = XDMFFile(mesh.mpi_comm(), f"{folder}/u.xdmf")
+xdmf_p = XDMFFile(mesh.mpi_comm(), f"{folder}/p.xdmf")
+xdmf_c = XDMFFile(mesh.mpi_comm(), f"{folder}/c.xdmf")
+
+for output_file in (xdmf_u, xdmf_p, xdmf_c):
+    output_file.parameters["flush_output"] = True
+    output_file.parameters["functions_share_mesh"] = True
+    output_file.parameters["rewrite_function_mesh"] = False
+
+
+
+
+time = 0.0
+ramp_time = 0.5
+steps_completed = 0
+time_completed = 0.0
+stop_reason = None
+failed_candidate = None
+
+# Budget diagnostics use the unmodified scalar variational forms. This run
+# carries the solved scalar forward unchanged, without any clipping or limiter.
+# A sum of assembled P1 residual entries tests with the partition of unity.
+# Zeroing the strongly prescribed inlet rows leaves the free-equation residual.
+# The remaining reaction is a DISCRETE boundary supply, not an independently
+# measured physical diffusive flux. Algebraic closure alone is not validation.
+vf_initial = float(assemble((1.0 - c_n) * dx))
+vf_previous = vf_initial
+cumulative = dict(adv_in=0.0, adv_out=0.0, divergence=0.0,
+                  gradient_in=0.0, fresh_reaction=0.0,
+                  free_residual=0.0, clipping=0.0)
+budget_fields = [
+    "step", "time_s", "ramp", "vf_initial_m2", "vf_previous_m2",
+    "vf_raw_m2", "vf_postclip_m2", "c_min_raw", "c_max_raw",
+    "volume_nozzle_in_m2_s", "fresh_adv_in_m2_s", "fresh_adv_out_m2_s",
+    "fresh_divergence_m2_s", "inlet_gradient_estimate_m2_s",
+    "inlet_scalar_reaction_m2_s", "fresh_discrete_reaction_m2_s",
+    "free_scalar_residual_sum_m2_s", "all_scalar_residual_sum_m2_s",
+    "vf_raw_change_rate_m2_s", "clipping_change_m2",
+    "discrete_identity_residual_m2_s", "gradient_form_residual_m2_s",
+    "cum_fresh_adv_in_m2", "cum_fresh_adv_out_m2", "cum_divergence_m2",
+    "cum_inlet_gradient_estimate_m2", "cum_fresh_discrete_reaction_m2",
+    "cum_free_scalar_residual_m2", "cum_clipping_change_m2",
+    "cumulative_discrete_residual_m2", "cumulative_gradient_residual_m2",
+    "cumulative_gradient_continuum_residual_m2"
+]
+budget_file = None
+budget_writer = None
+if rank == 0:
+    with open(__file__, "rb") as source_file:
+        source_sha256 = hashlib.sha256(source_file.read()).hexdigest()
+    configuration = {
+        "source_baseline": "IPSC_0.001_budget_diagnostic.py",
+        "experiment": "Five-second fresh-start Cartesian control without clipping",
+        "scalar_clipping_enabled": False,
+        "initial_state": "At rest; uniform ambient c=1; no checkpoint loaded",
+        "diagnostic_script_sha256": source_sha256,
+        "domain_m": [Lx, Ly], "mesh_divisions": [nx, ny],
+        "nozzle_width_m": d_nozzle, "nozzle_x_limits_m": [xL, xR],
+        "maximum_inlet_velocity_m_s": U_in,
+        "maximum_return_velocity_m_s": U_return,
+        "nu_m2_s": float(nu_visc), "D_m2_s": float(D),
+        "beta": float(beta), "g_m_s2": float(g),
+        "ambient_c": 1.0, "inlet_c": 0.0, "dt_s": dt_value,
+        "requested_steps": num_steps, "requested_duration_s": num_steps * dt_value,
+        "ramp_s": ramp_time, "ramp_type": "half cosine",
+        "field_write_every_steps": write_every, "budget_write_every_steps": 1,
+        "vf_initial_m2": vf_initial,
+        "method": "Oseen IPCS, implicit CG1 SUPG scalar; no clipping or limiter",
+        "csv_compatibility_note": "Legacy postclip inventory columns equal raw inventory; all clipping changes are zero",
+        "reaction_note": "Discrete strong-inlet scalar reaction; not proven physical diffusion",
+        "gradient_note": "Raw P1 boundary gradient estimate; not an exact discrete boundary flux",
+        "residual_note": "Algebraic identity closure does not establish physical accuracy",
+        "signs": "Fresh advection in positive, out positive; divergence, gradient supply, "
+                 "fresh reaction and clipping positive when adding fresh content; "
+                 "free scalar residual is subtracted from the fresh budget"
+    }
+    with open(os.path.join(folder, "budget_configuration.json"), "x") as config_file:
+        json.dump(configuration, config_file, indent=2)
+        config_file.write("\n")
+    budget_file = open(os.path.join(folder, "scalar_budget.csv"), "x", newline="")
+    budget_writer = csv.DictWriter(budget_file, fieldnames=budget_fields)
+    budget_writer.writeheader()
+    budget_file.flush()
+
+for n in range(num_steps):
+    time += dt_value
+
+    # Smooth half-cosine startup. The same amplitude is applied to
+    # the nozzle and both returns, preserving exact flux balance.
+    if time < ramp_time:
+        ramp = 0.5 * (
+            1.0 - math.cos(math.pi * time / ramp_time)
+        )
+    else:
+        ramp = 1.0
+
+    u_in.amp = ramp
+    u_return_left.amp = ramp
+    u_return_right.amp = ramp
+
+    if rank == 0 and ((n + 1) % 100 == 0 or n < 5):
+        print(
+            f"Step {n + 1}/{num_steps}, "
+            f"t = {time:.3f} s, ramp = {ramp:.6f}",
+            flush=True
+        )
+
+    
+    # Step 1: tentative velocity
+    
+    A1 = assemble(a1)
+    b1 = assemble(L1)
+
+    for bc in bcu:
+        bc.apply(A1, b1)
+
+    tentative_solver.solve(A1, u_star.vector(), b1)
+
+    
+    # Step 2: pressure correction
+    
+    b2 = assemble(L2)
+
+    for bc in bcp:
+        bc.apply(b2)
+
+    pressure_solver.solve(p_new.vector(), b2)
+
+    
+    # Step 3: velocity correction
+    
+    A3 = assemble(a3)
+    b3 = assemble(L3)
+
+    for bc in bcu:
+        bc.apply(A3, b3)
+
+    correction_solver.solve(A3, u_new.vector(), b3)
+
+    
+    # Scalar transport using the corrected velocity
+    
+    A_c = assemble(a_c)
+    b_c = assemble(L_c)
+
+    for bc in bcc:
+        bc.apply(A_c, b_c)
+
+    scalar_solver.solve(A_c, c_new.vector(), b_c)
+
+    
+    
+    
+    velocity_norm = u_new.vector().norm("linf")
+
+    c_min_before_clip = c_new.vector().min()
+    c_max_before_clip = c_new.vector().max()
+
+    if (n + 1) % 100 == 0 or n < 5:
+        flux_nozzle = assemble(dot(u_new, normal) * ds_sub(1))
+        flux_left = assemble(dot(u_new, normal) * ds_sub(2))
+        flux_right = assemble(dot(u_new, normal) * ds_sub(3))
+        net_flux = flux_nozzle + flux_left + flux_right
+
+        tentative_divergence = sqrt(
+            assemble(div(u_star) * div(u_star) * dx)
+        )
+        corrected_divergence = sqrt(
+            assemble(div(u_new) * div(u_new) * dx)
+        )
+
+        if rank == 0:
+            print("    nozzle flux       =", flux_nozzle, flush=True)
+            print("    left return flux  =", flux_left, flush=True)
+            print("    right return flux =", flux_right, flush=True)
+            print("    net flux          =", net_flux, flush=True)
+            print(
+                "    ||div(u*)||_L2    =", tentative_divergence,
+                flush=True
+            )
+            print(
+                "    ||div(u)||_L2     =", corrected_divergence,
+                flush=True
+            )
+            print("    min(c) unclipped =", c_min_before_clip, flush=True)
+            print("    max(c) unclipped =", c_max_before_clip, flush=True)
+            print("    ||u||_inf         =", velocity_norm, flush=True)
+
+    
+    # Blow-up guards
+    
+    c_arr = c_new.vector().get_local()
+
+    local_bad_scalar = not np.all(np.isfinite(c_arr))
+    any_bad_scalar = comm.allreduce(int(local_bad_scalar), op=MPI.MAX)
+    if not np.isfinite(velocity_norm) or velocity_norm > 5.0 or any_bad_scalar:
+        stop_reason = "Non-finite field or velocity norm exceeding the baseline 5 m/s guard"
+        failed_candidate = {
+            "attempted_step": n + 1, "attempted_time_s": time,
+            "velocity_norm_inf": float(velocity_norm),
+            "c_min_raw": float(c_min_before_clip),
+            "c_max_raw": float(c_max_before_clip)
+        }
+        if rank == 0:
+            print(
+                "ERROR: instability detected at "
+                f"step {n + 1}, t = {time:.6f} s.",
+                flush=True
+            )
+        break
+
+    # Collectives are deliberately outside the rank-0 output block.
+    # All scalar/flux quantities below use the unmodified solved field.
+    vf_raw = float(assemble((1.0 - c_new) * dx))
+    q_volume_in = float(assemble(-dot(u_new, normal) * ds_sub(1)))
+    q_fresh_in = float(assemble(
+        -(1.0 - c_new) * dot(u_new, normal) * ds_sub(1)))
+    q_fresh_out = float(assemble(
+        (1.0 - c_new) * dot(u_new, normal) * (ds_sub(2) + ds_sub(3))))
+    q_fresh_div = float(assemble((1.0 - c_new) * div(u_new) * dx))
+    q_gradient = float(assemble(-D * dot(grad(c_new), normal) * ds_sub(1)))
+    scalar_residual = assemble(action(a_c, c_new) - L_c)
+    free_scalar_residual = scalar_residual.copy()
+    # bcc prescribes ZERO at the inlet, so applying it to this vector zeros
+    # only the constrained rows; the original unmodified residual is retained.
+    for bc in bcc:
+        bc.apply(free_scalar_residual)
+    residual_sum = float(scalar_residual.sum())
+    free_residual_sum = float(free_scalar_residual.sum())
+    inlet_scalar_reaction = residual_sum - free_residual_sum
+    fresh_reaction = -inlet_scalar_reaction
+    raw_change_rate = (vf_raw - vf_previous) / dt_value
+    discrete_identity_residual = raw_change_rate - (
+        q_fresh_in - q_fresh_out + q_fresh_div
+        + fresh_reaction - free_residual_sum)
+    gradient_form_residual = raw_change_rate - (
+        q_fresh_in - q_fresh_out + q_fresh_div + q_gradient)
+
+    # NO CLIPPING: leave c_new unchanged for the following buoyancy/scalar step.
+    # Retain the old CSV schema so the clipped and unclipped runs can be compared.
+    vf_postclip = vf_raw
+    clipping_change = 0.0
+    cumulative["adv_in"] += dt_value * q_fresh_in
+    cumulative["adv_out"] += dt_value * q_fresh_out
+    cumulative["divergence"] += dt_value * q_fresh_div
+    cumulative["gradient_in"] += dt_value * q_gradient
+    cumulative["fresh_reaction"] += dt_value * fresh_reaction
+    cumulative["free_residual"] += dt_value * free_residual_sum
+    cumulative["clipping"] += clipping_change
+    cumulative_discrete_residual = vf_postclip - vf_initial - (
+        cumulative["adv_in"] - cumulative["adv_out"]
+        + cumulative["divergence"] + cumulative["fresh_reaction"]
+        - cumulative["free_residual"] + cumulative["clipping"])
+    cumulative_gradient_residual = vf_postclip - vf_initial - (
+        cumulative["adv_in"] - cumulative["adv_out"]
+        + cumulative["divergence"] + cumulative["gradient_in"]
+        + cumulative["clipping"])
+    cumulative_gradient_continuum_residual = (
+        cumulative_gradient_residual + cumulative["divergence"])
+    if rank == 0:
+        budget_writer.writerow(dict(zip(budget_fields, [
+            n + 1, time, ramp, vf_initial, vf_previous, vf_raw, vf_postclip,
+            float(c_min_before_clip), float(c_max_before_clip), q_volume_in,
+            q_fresh_in, q_fresh_out, q_fresh_div, q_gradient,
+            inlet_scalar_reaction, fresh_reaction, free_residual_sum, residual_sum,
+            raw_change_rate, clipping_change, discrete_identity_residual,
+            gradient_form_residual, cumulative["adv_in"], cumulative["adv_out"],
+            cumulative["divergence"], cumulative["gradient_in"],
+            cumulative["fresh_reaction"], cumulative["free_residual"],
+            cumulative["clipping"], cumulative_discrete_residual,
+            cumulative_gradient_residual, cumulative_gradient_continuum_residual
+        ])))
+        if (n + 1) % 100 == 0 or n < 5:
+            budget_file.flush()
+    vf_previous = vf_postclip
+
+    
+    # Update previous fields
+    
+    u_n.assign(u_new)
+    p_n.assign(p_new)
+    c_n.assign(c_new)
+    steps_completed = n + 1
+    time_completed = time
+
+    
+    
+    
+    if (n + 1) % write_every == 0 or n == 0:
+        u_new.rename("u", "")
+        p_new.rename("p", "")
+        c_new.rename("c", "")
+
+        xdmf_u.write(u_new, time)
+        xdmf_p.write(p_new, time)
+        xdmf_c.write(c_new, time)
+
+
+# Close files
+
+xdmf_u.close()
+xdmf_p.close()
+xdmf_c.close()
+
+if rank == 0:
+    budget_file.flush()
+    budget_file.close()
+    def finite_json(value):
+        if isinstance(value, dict):
+            return {key: finite_json(item) for key, item in value.items()}
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        return value
+
+    status = {
+        "status": "completed" if stop_reason is None else "stopped_early",
+        "steps_completed": steps_completed, "requested_steps": num_steps,
+        "time_completed_s": time_completed,
+        "requested_duration_s": num_steps * dt_value,
+        "scalar_clipping_enabled": False,
+        "stop_reason": stop_reason, "failed_candidate": failed_candidate,
+        "note": "Completion alone does not validate scalar bounds or physical accuracy"
+    }
+    with open(os.path.join(folder, "run_status.json"), "x") as status_file:
+        json.dump(finite_json(status), status_file, indent=2, allow_nan=False)
+        status_file.write("\n")
+    print("Run " + status["status"] + ". Results written to " + folder, flush=True)
+
+if stop_reason is not None:
+    raise SystemExit(1)
