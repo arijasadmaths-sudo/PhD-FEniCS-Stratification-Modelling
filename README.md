@@ -9,7 +9,7 @@ Source code for the numerical models in Chapter 6 and Appendices B-D of my PhD t
 | Original Cartesian models, Section 6.3 | `archive/early_fenics_ipcs/` |
 | Original axisymmetric models, Section 6.4 | `models/axisymmetric/earlier/`; the 70 cc/min source is `archive/early_fenics_ipcs/HPC.py` |
 | Cartesian checks, Section 6.5.3 | `models/cartesian/` |
-| Axisymmetric checks, Section 6.5.4 | `models/axisymmetric/current/` and `verification/` |
+| Axisymmetric checks, Section 6.5.4 | `models/axisymmetric/current/` and `models/axisymmetric/verification/` |
 | Reduced-height 3D model, Section 6.6 | `models/rectangular_3d_earlier/` |
 | Full-height 3D reference, Section 6.6.5 | `archive/rectangular_3d_reference/` |
 
@@ -31,6 +31,14 @@ python tests/check_repository.py
 
 These check syntax, file dependencies and the available numerical kernels. They do not rerun the coupled FEniCS simulations or MATLAB.
 
+## Data availability
+
+Simulation outputs, checkpoints and generated figures are not included. Reproducing the thesis plots requires the original return folders or XDMF/HDF5 pairs; no download for these is provided here.
+
+## Citation
+
+Citation details are in `CITATION.cff`. Include the commit used.
+
 ## Notes
 
-Simulation outputs and checkpoints are not included. A configured end time is not a completed result. Existing HPC checkpoints require their original matching source and helper files; do not bypass the restart checks.
+A configured end time is not a completed result. Existing HPC checkpoints require their original matching source and helper files; do not bypass the restart checks.
