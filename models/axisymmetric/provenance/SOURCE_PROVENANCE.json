@@ -1,0 +1,41 @@
+{
+  "purpose": "Repair arithmetic underflow in the final scalar residual check and resume original accepted checkpoint to the existing 5 s review point.",
+  "prepared_date": "2026-09-14",
+  "original_return": "axisymmetric50_extra_fine_half_RETURN_18949554.zip",
+  "original_source_sha256": "03cf644a84108531642084946e5a93e79cfdc2f72211e631e6e5af5f7feb5b95",
+  "repaired_source_sha256": "7927fef05764142a0a4a26bb93c85cf2d2016e3db9cc14c1d7e68c8137f73d5e",
+  "case": "extra_fine_half",
+  "mesh_cells": 200736,
+  "dt_s": 0.0005,
+  "Q_cc_min": 70.0,
+  "restart_step": 2000,
+  "restart_time_s": 1.0,
+  "review_stop_step": 10000,
+  "review_stop_time_s": 5.0,
+  "target_time_s": 50.0,
+  "changes": [
+    "Final scalar residual guard accounts for a row-operation-count bound on float64 subnormal rounding; reports both raw and adjusted metrics.",
+    "Same matrix, RHS, factorization, iterative refinement, scalar candidate, relative tolerance, budget and bounds guards.",
+    "Explicit source compatibility for this one exact reviewed parent checkpoint in extra_fine_half; every other identity item must match.",
+    "Original checkpoint and historical field metadata and arrays are unmodified; input source is recorded in configuration and segments.",
+    "Launcher defaults to bundled 1 s accepted checkpoint, runs saved scalar replay, preserves absolute 5 s review stop; return ZIP includes original data and repair provenance."
+  ],
+  "seed_sha256": {
+    "checkpoint_latest.npz": "70633cbc46cfd7580cd5006e2cbaf7b4166796f984c089a59e4496f118a885f8",
+    "field_step_000000000.npz": "1ffee7ef9655d01e7c77ba5c20808104627b2d7b93ee1d07e7fbbf6dd1a30fa5",
+    "verification_budget.csv": "c38c3f9690155fb76d2509d462b206f84ad1a2ea93431baea79c26af90e855a8"
+  },
+  "fenics_available_during_preparation": false,
+  "jobs_submitted": false,
+  "validation_index": "REPAIR_VALIDATION.json",
+  "prepared_file_sha256": {
+    "axisymmetric_70_study_50s.py": "7927fef05764142a0a4a26bb93c85cf2d2016e3db9cc14c1d7e68c8137f73d5e",
+    "study_checkpoint.py": "fbc87196f0af33470b7ad460d4265b040f6bdaeb7f517d63d621f9f372bbcdb5",
+    "check_restart.py": "60233d0e6e02b944fff236eae891b754c3018075abed73cea8bbedff0d73280f",
+    "validate_restart_identity.py": "d23bb60943f5504f7c206b1d16c342571501a62db9713d6b7ecc9467ec5ec22b",
+    "pack_return.py": "53132d9b5dd9d4b7f10ddfbd6bc064821d49d83b05f22be01cc3c2dca404ea3d",
+    "run_axisymmetric_extra_fine_half_50s.sh": "1f31d776b2174480d771f4e12dc67afc723a564de4e7a8c7f5383fdca6fb7215",
+    "README.txt": "ec4ed220cd350e484210d0586d397c30d9bc629d9b845007db000d7a42ba54ce",
+    "REPAIR_NOTES.txt": "b07cca63017d630eaa676033e0b91249cddad024bc61612579a46760f942234b"
+  }
+}
