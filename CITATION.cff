@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+message: "Please cite this repository and identify the commit used."
+type: software
+title: "PhD FEniCS Stratification Modelling"
+authors:
+  - family-names: Asad
+    given-names: Arij
+repository-code: "https://github.com/arijasadmaths-sudo/PhD-FEniCS-Stratification-Modelling"
