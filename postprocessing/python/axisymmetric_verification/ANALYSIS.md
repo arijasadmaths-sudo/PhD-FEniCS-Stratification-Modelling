@@ -1,4 +1,6 @@
-# Axisymmetric extra-fine half-step review
+# Historical axisymmetric extra-fine half-step bundle review
+
+> Historical scope: this report records the half-step return-bundle review completed before the extra-fine quarter-step comparison. Its numerical results are retained as originally reported. The quarter-step calculation has since been completed; see [the current solver README](../../../models/axisymmetric/current/README.txt) and the separate [quarter-step analysis script](analyze_quarter_check.py).
 
 The repaired run `axisymmetric50_extra_fine_half_RETURN_18954282.zip` reached the intended **5 s review pause**, with 200,736 triangular cells and Δt = 0.0005 s. Its status is `paused` and exit code 75 is expected. It has not completed the 50 s target. The checkpoint and full accepted budget history are intact.
 
@@ -66,23 +68,26 @@ For coordinates s = r²/2 and height z, the physical volume measure is dV = 2π 
 
 Source differences were independently inspected. They add mesh/time-step choices, metadata, restart compatibility and the audited residual-check repair. They do not change physical coefficients, weak forms, the transport matrix/right-hand side, flux-projection solve or scalar candidate calculation.
 
-The `reference_fields` directory preserves the 0, 2 and 5 s snapshots, configurations and source/helper files for all six compared cases, with SHA-256 hashes. Original return archives and checkpoints remain the authoritative full histories. The metrics JSON records the original local source paths and hashes; the preserved snapshots have identical hashes in their corresponding `reference_fields` subdirectories.
+The external `reference_fields` directory from the original half-step verification bundle preserves the 0, 2 and 5 s snapshots, configurations and source/helper files for all six compared cases, with SHA-256 hashes. That input directory and the original return archive `axisymmetric50_extra_fine_half_RETURN_18954282.zip` are not included in this repository. Original return archives and checkpoints remain the authoritative full histories. The metrics JSON records the original local source paths and hashes; the preserved snapshots have identical hashes in their corresponding `reference_fields` subdirectories.
 
-To recompute the comparison from this bundle, using Python with NumPy, SciPy and Shapely 2 or later, run from the bundle directory:
+To recompute this historical comparison, first extract the original half-step verification bundle outside the repository. Then, from the repository root, run the repository copy of the analysis code with absolute or repository-relative paths to that external input:
 
 ```bash
-python analysis/analyze_half_matrix.py \
-  --data reference_fields \
-  --current reference_fields/axisymmetric50_extra_fine_half_RETURN_18954282 \
-  --out analysis
-python analysis/plot_half_matrix.py
+python postprocessing/python/axisymmetric_verification/analyze_half_matrix.py \
+  --data /path/to/extracted-half-step-bundle/reference_fields \
+  --current /path/to/extracted-half-step-bundle/reference_fields/axisymmetric50_extra_fine_half_RETURN_18954282 \
+  --out /path/to/extracted-half-step-bundle/analysis
+python postprocessing/python/axisymmetric_verification/plot_half_matrix.py \
+  /path/to/extracted-half-step-bundle/analysis
 ```
 
 Plot generation also needs Matplotlib. These analysis dependencies are separate from the FEniCS production environment; analysis does not run in the production launcher. `current_return_integrity.json`, `underflow_replay_independent.json` and `comparison_independent.json` record the separate audits.
 
-## Next test and decision
+## Historical next test and decision
 
-Run **extra-fine, 200,736 cells, Δt = 0.00025 s, from rest through 5 s**. It needs 20,000 accepted steps. Retain the 50 s checkpoint identity for a possible later continuation, but the launcher defaults to an absolute 5 s review pause, including on restarts. No existing half-step checkpoint is used to initialize this new time-step test.
+This section records the next test proposed when the half-step bundle was reviewed. That extra-fine quarter-step test has since been completed and is included in the thesis comparison. Current run guidance and the completed-case inventory are in [the current solver README](../../../models/axisymmetric/current/README.txt); the separate repository analysis is [analyze_quarter_check.py](analyze_quarter_check.py).
+
+The historical recommendation was to run **extra-fine, 200,736 cells, Δt = 0.00025 s, from rest through 5 s**. It needs 20,000 accepted steps. Retain the 50 s checkpoint identity for a possible later continuation, but the launcher defaults to an absolute 5 s review pause, including on restarts. No existing half-step checkpoint is used to initialize this new time-step test.
 
 Allow approximately **60–70 hours** based on the measured half-step segment; runtime can vary. The Slurm request is 72 hours, and checkpoint restart is available if another allocation is needed. The full coupled calculation has not run locally. The launcher performs the coupled FEniCS restart smoke test on Blue Pebble before production.
 
