@@ -1,0 +1,16 @@
+{
+  "baseline_return": "axisymmetric50_extra_fine_half_RETURN_18954282",
+  "baseline_solver_sha256": "7927fef05764142a0a4a26bb93c85cf2d2016e3db9cc14c1d7e68c8137f73d5e",
+  "current_solver_sha256": "cef3aa6066a4a07fbfc1e239a6d543b694da3cc6da95b6c8730b1fe95caa65d5",
+  "unchanged_checkpoint_helper_sha256": "fbc87196f0af33470b7ad460d4265b040f6bdaeb7f517d63d621f9f372bbcdb5",
+  "changes": [
+    "Add extra_fine_quarter case to parser, dt maps and refinement map only",
+    "Keep repaired scalar residual check and all momentum/transport equations unchanged",
+    "New launcher starts from rest and stops at absolute 5 s by default; no old-case checkpoint is accepted"
+  ],
+  "baseline_source": "provenance/axisymmetric_70_study_50s.py",
+  "hash_scope": "Original prepared sources before comment cleanup.",
+  "repository_solver_sha256": "30ad34749f2a06baed1eedae492d9aaa7d781ef4b631c7e32bb99d6aa387f76f",
+  "repository_checkpoint_helper_sha256": "fbc87196f0af33470b7ad460d4265b040f6bdaeb7f517d63d621f9f372bbcdb5",
+  "restart_note": "Use the matching original source/helper set for an existing HPC checkpoint. Do not change checkpoint hashes."
+}

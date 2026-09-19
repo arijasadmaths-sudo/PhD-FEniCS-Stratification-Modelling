@@ -1,5 +1,7 @@
 # Axisymmetric models
 
-The `current` folder contains the latest axisymmetric source used for the final numerical checks. `verification` contains the associated flux, mesh and timestep checks. Earlier 20 cc/min and continuation versions are retained separately in `earlier`.
+`current/` contains the locally balanced transport used for Section 6.5.4, including the underflow repair and extra-fine quarter-step check. `verification/` contains the earlier controls and flux pilots.
 
-Large returned fields and analysis outputs are not included.
+The two named sources in `earlier/` retain the original 20 cc/min calculation and its continuation. The original 70 cc/min source is `archive/early_fenics_ipcs/HPC.py` from the repository root. Its executable time step is 0.001 s despite the older wording in its header.
+
+The final quarter-step comparisons are in `postprocessing/python/axisymmetric_verification/`.

@@ -1,5 +1,15 @@
-# Rectangular 3D quantitative model
+# Full-height rectangular 3D model
 
-This is the current rectangular 3D quantitative model family used for the 600 x 300 x 300 mm case. It replaces the older `3D_bundle` snapshot from the working archive.
+This folder contains the later 600 x 300 x 300 mm model, with separate density and dye transport at 20 cc/min. Keep the solver, scalar module, verifier and launcher together.
 
-The folder includes the main FEniCS solver, mixed scalar transport, verification scripts, submission scripts and the quantitative post-processing used with this model. The dated READMEs are retained because they document the numerical checks and later solver updates.
+The scalar solver includes the September 17 equilibration and residual correction. The September 18 driver adds a monitored fine-mesh startup allowance. Neither change clips or redistributes the concentration.
+
+For one new fine allocation, with the account and work directory set for your machine:
+
+```sh
+MESH_LEVEL=fine DT=0.001 T_GLOBAL=20 PIN_CHECKPOINT_TIME=0 bash submit_rectangular_3d_quantitative.sh --chain 1 --account=YOUR_ACCOUNT --partition=compute --mem=64G
+```
+
+This is a 20 s target, not a claim of completion. Do not replace files in an active HPC run or launch another copy into its output directory.
+
+The thesis reference fields use the earlier source in `archive/rectangular_3d_reference/`, not this later revision. See `README_rectangular_3d_quantitative.md` for the startup limits and output interpretation.

@@ -74,8 +74,8 @@ def check(checkpoint, source):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     root = Path(__file__).resolve().parent
-    parser.add_argument("--checkpoint", default=str(root/"prior_return/checkpoint_latest.npz"))
-    parser.add_argument("--source", default=str(root/"cartesian_compact_5s.py"))
+    parser.add_argument("--checkpoint", required=True, help="Accepted compact156p25 full-step checkpoint")
+    parser.add_argument("--source", default=str(root.parent/"provenance/cartesian_compact_dt001.py"))
     parser.add_argument("--report")
     args = parser.parse_args()
     report = check(args.checkpoint, args.source)

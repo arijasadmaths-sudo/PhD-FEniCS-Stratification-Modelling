@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Plot saved matched-time metrics and exact horizontal-slab averages."""
+import argparse
 import json
 from pathlib import Path
 import numpy as np
@@ -7,7 +8,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-ROOT = Path(__file__).resolve().parent
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("directory", nargs="?", type=Path, default=Path(__file__).resolve().parent,
+                    help="Folder containing the saved analysis metrics and profiles")
+ROOT = parser.parse_args().directory.resolve()
 metrics = json.loads((ROOT/'axisymmetric_half_matrix_metrics.json').read_text())
 profiles = np.load(ROOT/'axisymmetric_half_matrix_profiles.npz')
 plt.rcParams.update({'font.size': 10, 'axes.spines.top': False,

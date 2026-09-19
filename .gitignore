@@ -13,3 +13,7 @@ checkpoint*
 checkpoints/
 results*/
 RETURN*/
+
+validation/
+validation_report.json
+*_RETURN_*/

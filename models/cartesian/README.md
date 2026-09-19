@@ -1,31 +1,21 @@
-# Cartesian compact half-step source bundle
+# Cartesian models
 
-This directory preserves the supplied half-step solver and its launcher/helpers.
-Both compact cases use dt=0.0005 s to t=5 s and one MPI rank.
-The original full-step source was present at `../cartesian_compact_5s.py`;
-its exact original is also provided at `provenance/cartesian_compact_dt001.py`
-to restore the existing validator's expected layout. The original full-step
-SHA-256 is 3051033140e9e158da891416749a167d9f9f7654a6c1e278cc0c3f490611689d.
+The compact-grid checks in Section 6.5.3 use `provenance/cartesian_compact_dt001.py` at dt = 0.001 s and `cartesian_half_step_5s.py` at dt = 0.0005 s. Both compact meshes start from rest and stop at 5 s.
 
-On the original Bristol environment, submit from this directory:
+Run a full-step case with:
 
 ```sh
-export CARTESIAN_WORK_PARENT=/absolute/existing/work/directory
-sbatch run_cartesian_half_step_5s.sh
+python provenance/cartesian_compact_dt001.py --case compact312p5 --output /absolute/new/run
 ```
 
-Check the scheduler account and module on your system before submitting.
-The array runs compact312p5 and compact156p25 from rest. Each case packages
-its accepted checkpoint, scalar budget and comparison fields in a separate
-RETURN directory and ZIP. Existing output paths are protected.
+Use `compact156p25` for the finer mesh. For both half-step cases, set the account in the launcher and submit from this folder:
 
-`python3 cartesian_half_step_5s.py --self-test` needs NumPy/SciPy only.
-`python3 validate_bundle.py` also checks the restored full-step source,
-restart guards and mocked launcher packaging. Mock checks are not coupled
-finite-element simulations. The validator requires Python 3.9 or newer.
+```sh
+CARTESIAN_WORK_PARENT=/absolute/existing/work sbatch run_cartesian_half_step_5s.sh
+```
 
-Essential comments are retained; decorative separators are removed. Executable code, docstrings,
-source-hash guards and scheduler directives are preserved. Original checkpoints
-with hashes of the commented source are not interchangeable with this cleaned
-source. Use the original-source Git reference to restore the complete matching sources for those runs; never disable
-these checks. See `../../docs/AUDIT.md` and `../../docs/source_manifest.json`.
+The array writes a separate return folder and ZIP for each case. Existing outputs are protected. Earlier uniform and focused checks are in `verification_and_development/`.
+
+`verify_finish_input.py` is only for the historical compact156p25 full-step restart. Supply its checkpoint explicitly with `--checkpoint`; the original source-hash check is retained.
+
+The final comparison scripts are in `postprocessing/python/cartesian_verification/` from the repository root. `python validate_bundle.py` checks the compact solver, restart guards and mocked launcher packaging without FEniCS.
