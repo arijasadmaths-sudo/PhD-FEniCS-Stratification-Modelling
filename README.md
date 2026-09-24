@@ -1,44 +1,48 @@
-# PhD FEniCS Stratification Modelling
+# FEniCS stratification modelling
 
-Source code for the numerical models in Chapter 6 and Appendices B-D of my PhD thesis, with the associated post-processing and numerical checks.
+Source, launchers, verification utilities and post-processing for the numerical
+models in this repository.
 
-## Contents
+## Layout
 
-| Thesis calculation | Code |
-| --- | --- |
-| Original Cartesian models, Section 6.3 | `archive/early_fenics_ipcs/` |
-| Original axisymmetric models, Section 6.4 | `models/axisymmetric/earlier/`; the 70 cc/min source is `archive/early_fenics_ipcs/HPC.py` |
-| Cartesian checks, Section 6.5.3 | `models/cartesian/` |
-| Axisymmetric checks, Section 6.5.4 | `models/axisymmetric/current/` and `models/axisymmetric/verification/` |
-| Reduced-height 3D model, Section 6.6 | `models/rectangular_3d_earlier/` |
-| Full-height 3D reference, Section 6.6.5 | `archive/rectangular_3d_reference/` |
+- `models/cartesian/`: Cartesian solvers and verification cases
+- `models/axisymmetric/`: current, verification and earlier axisymmetric sources
+- `models/rectangular_3d_earlier/`: reduced-height rectangular 3D sources
+- `models/rectangular_3d_quantitative/`: current full-height rectangular 3D source
+- `postprocessing/`: MATLAB and Python analysis utilities
+- `archive/`: superseded sources retained for provenance and old checkpoints
+- `tests/`: local repository and launcher checks
 
-`models/rectangular_3d_quantitative/` contains the later full-height solver updates. These are kept separate from the earlier reference version, not treated as another model.
+## Requirements
 
-`postprocessing/` contains the MATLAB scripts and Python comparisons. Other earlier versions are retained in `archive/`.
+The simulations use legacy FEniCS 2019.1.0 with PETSc and MPI. Later 2D checks
+also use NumPy and SciPy. Python post-processing uses NumPy, SciPy, h5py and
+Matplotlib; axisymmetric overlap calculations require Shapely 2 or later.
 
-## Running the code
+Use the instructions in the relevant model folder. Set the Slurm account, module
+and work paths for the target cluster before submission. The 2D verification cases
+use one MPI rank; the 3D launchers request 24.
 
-The simulations use legacy FEniCS 2019.1.0 with PETSc/MPI. The later 2D checks also use NumPy and SciPy. Python post-processing uses NumPy, SciPy, h5py and Matplotlib; the axisymmetric overlap calculations need Shapely 2 or later.
+## Checks
 
-Use the instructions in the relevant model folder. Set the Slurm account and work paths for your machine before submitting. The 2D verification cases use one MPI rank; the 3D launchers request 24.
-
-Run the local checks with Python 3.9 or later from the repository root:
+Run from the repository root with Python 3.9 or later:
 
 ```sh
 python tests/check_repository.py
 ```
 
-These check syntax, file dependencies and the available numerical kernels. They do not rerun the coupled FEniCS simulations or MATLAB.
+This checks syntax, file dependencies, numerical kernels and mocked launcher
+control paths. It does not run coupled FEniCS simulations or MATLAB.
 
-## Data availability
+## Outputs and restarts
 
-Simulation outputs, checkpoints and generated figures are not included. Reproducing the thesis plots requires the original return folders or XDMF/HDF5 pairs; no download for these is provided here.
+Simulation outputs, checkpoints and generated figures are not included. The
+post-processing scripts require the corresponding return folders or XDMF/HDF5
+pairs.
+
+Only saved output times should be treated as completed. Checkpoints are
+version-specific and require their matching source and helper files.
 
 ## Citation
 
 Citation details are in `CITATION.cff`. Include the commit used.
-
-## Notes
-
-A configured end time is not a completed result. Existing HPC checkpoints require their original matching source and helper files; do not bypass the restart checks.
