@@ -3,7 +3,7 @@ close all
 clc
 
 %% ================================================================
-%  3D RECTANGULAR FEniCS POST-PROCESSING -- THESIS-READY
+%  3D RECTANGULAR FEniCS POST-PROCESSING
 %
 %  Designed for the restartable 3D rectangular H(div) calculation.
 %
@@ -59,7 +59,7 @@ zMinExpected = 0.0;
 zMaxExpected = H;
 
 
-% Thesis concentration settings
+% Concentration display settings
 
 
 % The production concentration is already physically normalised:
@@ -141,7 +141,7 @@ thesisPngResolution = 600;
 %
 % This setting affects ONLY the plotted time-height images.  The
 % binned values are linearly interpolated onto a finer display grid
-% so the thesis figures do not appear as blocky horizontal strips.
+% to smooth the displayed image without changing the saved averages.
 smoothTimeHeightForDisplay = true;
 nZTimeHeightDisplay = 350;
 
@@ -1066,7 +1066,7 @@ end
 
 
 %% ================================================================
-%  CLEAN THESIS-READY ABSOLUTE MEAN PROFILES
+%  ABSOLUTE MEAN PROFILES
 
 
 fig = figure( ...
@@ -1151,7 +1151,7 @@ close(fig)
 
 
 %% ================================================================
-%  CLEAN THESIS-READY NORMALISED MEAN PROFILES
+%  NORMALISED MEAN PROFILES
 %
 %     phi(z,t) = (1-cbar) / max_z(1-cbar)
 %
@@ -1579,7 +1579,7 @@ fprintf('Velocity streamlines available = %d\n',velocityAvailable)
 
 fprintf('\nResults saved in:\n%s\n',resultsFolder)
 
-fprintf('\nMain thesis-ready files include:\n')
+fprintf('\nProfile figures include:\n')
 fprintf('  THESIS_full_tank_average_profiles_clean.png\n')
 fprintf('  THESIS_normalised_fresh_profiles_clean.png\n')
 fprintf('  THESIS_full_tank_average_time_height_contrast_%s.png\n', ...
@@ -1936,7 +1936,7 @@ function exportCleanStreamlines( ...
     resolution)
 
 
-    % THESIS STREAMLINE STYLE
+    % Streamline display
     %
     % Match the other numerical-model figures:
     %   * white background
@@ -1974,7 +1974,7 @@ function exportCleanStreamlines( ...
     % Preserve the true physical aspect ratio of the slice.
     axis(ax,'image');
 
-    % Clean thesis style: no axes, ticks, labels, frame or key.
+    % Export without axes, ticks, labels, frame or key.
     axis(ax,'off');
 
     exportgraphics( ...
@@ -2166,4 +2166,3 @@ function exportTimeHeightMap( ...
 
     close(fig)
 end
-

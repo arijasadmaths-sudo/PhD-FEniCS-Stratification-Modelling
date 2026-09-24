@@ -103,7 +103,7 @@ resultsFolder = fullfile( ...
 plotTimeSpacing = 0.5;
 
 
-% Thesis-ready high-contrast concentration images.
+% Fixed high-contrast concentration images.
 %
 % Normal images retain the full concentration range:
 %       0 <= c <= 1
@@ -164,7 +164,7 @@ planZFractions = [ ...
 % Output resolution.
 pngResolution = 400;
 
-% Higher resolution for clean thesis-ready contrast figures.
+% Higher resolution for the contrast figures.
 thesisPngResolution = 600;
 
 
@@ -210,7 +210,7 @@ xyFolder = fullfile( ...
     'final_xy_plan_slices');
 
 
-% Separate clean thesis-ready contrast outputs.
+% Separate fixed-contrast outputs.
 xzContrastFolder = fullfile( ...
     resultsFolder, ...
     'central_xz_slices_contrast_0p97_thesis');
@@ -937,7 +937,7 @@ for k = 1:nTimes
 
 
 
-        % THESIS-READY CONTRAST VERSION
+        % FIXED-CONTRAST VERSION
         %
         % Same field and same physical proportions, but display
         % only the upper concentration range 0.97 <= c <= 1.
@@ -1037,7 +1037,7 @@ for k = 1:nTimes
             'BackgroundColor','white');
 
 
-        % Thesis-ready 0.97 contrast version.
+        % Fixed 0.97 contrast version.
         clim( ...
             ax, ...
             [contrastLower 1]);
@@ -1205,7 +1205,7 @@ for j = 1:numel(planZFractions)
         'BackgroundColor','white');
 
 
-    % Thesis-ready 0.97 contrast version.
+    % Fixed 0.97 contrast version.
     clim( ...
         ax, ...
         [contrastLower 1]);
@@ -1242,7 +1242,7 @@ profileColors = [ ...
 
 
 
-% CLEAN THESIS-STYLE PROFILE FIGURE
+% PROFILE FIGURE WITHOUT AXES
 
 
 fig = figure( ...
@@ -1875,7 +1875,7 @@ fprintf('  %s\n',xzFolder)
 fprintf('  %s\n',yzFolder)
 fprintf('  %s\n',xyFolder)
 fprintf('\n')
-fprintf('Thesis-ready 0.97 contrast folders:\n')
+fprintf('Fixed 0.97 contrast folders:\n')
 fprintf('  %s\n',xzContrastFolder)
 fprintf('  %s\n',yzContrastFolder)
 fprintf('  %s\n',xyContrastFolder)
