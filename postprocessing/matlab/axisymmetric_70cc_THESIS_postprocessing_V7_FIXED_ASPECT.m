@@ -63,7 +63,7 @@ h5File   = 'c.h5';
 velocityXdmfFile = 'u_physical.xdmf';
 velocityH5File   = 'u_physical.h5';
 
-% Thesis streamline times.
+% Streamline output times.
 streamlineTimes = [200 500];
 
 % Streamline plotting grid.
@@ -79,11 +79,11 @@ resultsFolder = 'FEniCS_axisymmetric_THESIS_results';
 % Save every available field for checking the full evolution.
 saveAllFields = true;
 
-% Main six-panel thesis high-flow sequence.
+% Selected six-panel high-flow sequence.
 % Requested times beyond the currently available output are ignored.
 thesisFieldTimes = [50 150 250 350 450 550];
 
-% Times used on the thesis mean-profile figures.
+% Mean-profile output times.
 profileTimes = [50 100 200 300 400 500];
 
 % Number of vertical bins used for the QUANTITATIVE area-weighted
@@ -105,7 +105,7 @@ nPlotZ = 600;
 %
 % This is the useful contrast view used to reveal the weak upper
 % stratification that is almost invisible on the full c = 0--1 scale.
-% MAIN THESIS CONTRAST:
+% PRIMARY FIXED CONTRAST:
 %
 %       0.98 <= c <= 1
 %
@@ -117,7 +117,7 @@ contrastFreshMax = 0.02;
 % Keep the stronger 0.99--1 contrast as a diagnostic only.
 diagnosticContrastFreshMax = 0.01;
 
-% Additional broader thesis-ready contrast:
+% Additional broader fixed contrast:
 %
 %       0.97 <= c <= 1
 %
@@ -131,8 +131,7 @@ saveIndividualProfiles = true;
 
 profileResolution = 600;
 
-% Clean profile figures are deliberately portrait, matching the other
-% numerical profile figures used in the thesis.
+% Portrait profile figures use the same dimensions as other numerical plots.
 profileFigureSize = [1000 1600];
 
 % Exact thesis profile output geometry.
@@ -725,7 +724,7 @@ for k = 1:nTimes
                     ['contrast_099_100_' timeTag '.png']));
 
 
-            % BROADER THESIS CONTRAST: 0.97 <= c <= 1
+            % BROADER FIXED CONTRAST: 0.97 <= c <= 1
             broadContrastPlot = ...
                 deltaC ...
                 / ...
@@ -743,7 +742,7 @@ for k = 1:nTimes
                     ['contrast_097_100_' timeTag '.png']));
 
 
-            % Convenient thesis-ready copies of both fixed scales.
+            % Copies at both fixed scales.
             imwrite( ...
                 contrastGray, ...
                 fullfile( ...
@@ -976,14 +975,14 @@ close(fig)
 %
 %      c* = (cbar-min(cbar))/(max(cbar)-min(cbar))
 %
-%  A clean no-axis version is saved in THESIS_READY.
+%  A version without axes is saved in THESIS_READY.
 
 
 cBarNormalisedSelected = nan(nProfileBins,numel(profileIdx));
 
 
 
-% CLEAN THESIS-READY VERSION
+% PROFILE FIGURE WITHOUT AXES
 
 
 fig = figure( ...
@@ -1192,7 +1191,7 @@ close(fig)
 
 
 %% ================================================================
-%  THESIS CONTRAST SCALE REFERENCE: 0.98--1
+%  FIXED CONTRAST SCALE: 0.98--1
 
 
 fig = figure( ...
@@ -1263,7 +1262,7 @@ close(fig)
 %  so the radial component changes sign when reflected across the
 %  symmetry axis.
 %
-%  Clean streamline figures at 200 and 500 s are written directly
+%  Streamline figures at 200 and 500 s are written directly
 %  to the THESIS_READY folder.  If 500 s is not yet available, it is
 %  simply skipped until the script is rerun later.
 
@@ -1411,7 +1410,7 @@ if ...
 
 
 
-                % CLEAN THESIS STREAMLINE FIGURE
+                % STREAMLINE FIGURE WITHOUT AXES
 
 
                 fig = figure( ...
@@ -1490,7 +1489,7 @@ if ...
                     'BackgroundColor','white')
 
 
-                % Convenient thesis-ready copies.
+                % Copy without axes.
                 exportgraphics( ...
                     ax, ...
                     fullfile( ...
@@ -1534,7 +1533,7 @@ end
 
 
 %% ================================================================
-%  BROADER THESIS CONTRAST SCALE REFERENCE: 0.97--1
+%  BROADER FIXED CONTRAST SCALE: 0.97--1
 
 
 fig = figure( ...
@@ -1664,12 +1663,12 @@ fprintf('Mesh cells    = %d\n',nCells)
 fprintf('Saved ALL %d raw concentration snapshots.\n',numel(fieldIdx))
 fprintf('Saved ALL %d contrast-enhanced snapshots.\n',numel(fieldIdx))
 fprintf('Last exported field time = %.6g s\n',times(fieldIdx(end)))
-fprintf('MAIN thesis contrast: 0.98 <= c <= 1\n')
+fprintf('Primary contrast: 0.98 <= c <= 1\n')
 fprintf('Diagnostic contrast: 0.99 <= c <= 1\n')
-fprintf('Broader thesis contrast: 0.97 <= c <= 1\n')
-fprintf('Clean thesis-ready concentration/profile/streamline outputs saved in:\n')
+fprintf('Broader contrast: 0.97 <= c <= 1\n')
+fprintf('Concentration, profile and streamline figures saved in:\n')
 fprintf('    %s\n',thesisReadyFolder)
-fprintf('Selected thesis fields: %d\n',numel(thesisFieldIdx))
+fprintf('Selected fields: %d\n',numel(thesisFieldIdx))
 fprintf('Saved %d selected mean profiles.\n',numel(profileIdx))
 fprintf('Results saved in:\n')
 fprintf('    %s\n',resultsFolder)
