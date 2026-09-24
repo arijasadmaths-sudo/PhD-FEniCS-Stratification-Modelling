@@ -1864,6 +1864,15 @@ petsc_nullspace = PETSc.NullSpace().create(
 
 # MONOLITHIC PETSC SOLVER
 
+# HYPRE intermittently returned PETSc error 76 in the production flow solve
+# on Blue Pebble, on several nodes and from several valid checkpoints.  PETSc
+# block Jacobi with a local ILU solve on each MPI subdomain is therefore the
+# production default.  This changes only the linear preconditioner; the
+# assembled equations, tolerances and accepted state are unchanged.  Retain
+# the alternatives as explicit overrides for controlled comparisons.
+mono_block_pc = os.environ.get("RECT3D_MONO_BLOCK_PC", "bjacobi").strip().lower()
+if mono_block_pc not in ("bjacobi", "hypre", "gamg"):
+    raise ValueError("RECT3D_MONO_BLOCK_PC must be bjacobi, hypre or gamg.")
 
 ksp = PETSc.KSP().create(PETSc.COMM_WORLD)
 ksp.setOptionsPrefix("mono_")
@@ -1881,11 +1890,20 @@ opts["mono_pc_fieldsplit_type"] = "schur"
 opts["mono_pc_fieldsplit_schur_fact_type"] = "full"
 opts["mono_pc_fieldsplit_schur_precondition"] = "selfp"
 opts["mono_fieldsplit_0_ksp_type"] = "preonly"
-opts["mono_fieldsplit_0_pc_type"] = "hypre"
+opts["mono_fieldsplit_0_pc_type"] = mono_block_pc
 opts["mono_fieldsplit_1_ksp_type"] = "preonly"
-opts["mono_fieldsplit_1_pc_type"] = "hypre"
+opts["mono_fieldsplit_1_pc_type"] = mono_block_pc
+if mono_block_pc == "bjacobi":
+    opts["mono_fieldsplit_0_sub_ksp_type"] = "preonly"
+    opts["mono_fieldsplit_0_sub_pc_type"] = "ilu"
+    opts["mono_fieldsplit_1_sub_ksp_type"] = "preonly"
+    opts["mono_fieldsplit_1_sub_pc_type"] = "ilu"
 
 ksp.setFromOptions()
+root_print(
+    "MONOLITHIC FLOW BLOCK PRECONDITIONER:", mono_block_pc,
+    "(local ILU enabled)" if mono_block_pc == "bjacobi" else ""
+)
 
 
 
