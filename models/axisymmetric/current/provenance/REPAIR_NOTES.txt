@@ -1,72 +1,38 @@
-AXISYMMETRIC RETURN 18949554: FINDINGS AND REPAIR
+AXISYMMETRIC SCALAR RESIDUAL REPAIR
 14 September 2026
 
-Outcome
-The extra_fine_half run did not reach the planned 5 s review point. It failed
-while checking the scalar candidate at step 2714 (t = 1.357 s). Its last
-accepted scalar is step 2713 (1.3565 s); its latest restartable checkpoint is
-step 2000 (1.0 s). The failed snapshot contains attempted velocity/pressure
-and an earlier accepted scalar, so it must not be used as a restart state.
+Issue
+-----
 
-All 18 original manifest entries match their SHA256 and size. The accepted
-CSV has 2713 consecutive rows at dt = 0.0005 s. Its maximum absolute relative
-cumulative freshwater-budget residual is 2.7482e-15; concentration remains
-between 0 and 1 + 6.7e-15. The original coupled coarse restart gate passed.
-These are conservation and bookkeeping checks, not convergence evidence.
-
-Reproduced cause
-The rejected scalar candidate is valid apart from the interpretation of a
-relative linear residual at floating-point underflow. In cell 102414,
-r = 0.00236438 m and z = 0.11270833 m, concentration is 1.4949964e-305.
-Its residual is one smallest positive float64 value, 4.94065646e-324 m3,
-divided by a row scale of 3.48620637e-314 m3. The reported relative value is
-1.41720138e-10, exceeding the unchanged 5e-11 tolerance even though the
-absolute residual is at the representable-number limit. Normal-scale rows
-have maximum relative residual 1.93668e-16.
+The extra_fine_half run stopped when the relative scalar residual check divided a
+subnormal absolute residual by a subnormal row scale. The scalar candidate was
+otherwise valid. The failed snapshot is not a restart state; use the bundled
+accepted checkpoint.
 
 Correction
-The matrix, RHS, LU factorisation, solve and three-step iterative refinement
-are unchanged. The final residual check allows only the absolute underflow
-roundoff from evaluating the row: (2*n + 1) times the smallest float64
-subnormal for a row with n stored matrix terms. This is based on its number
-of multiply/add/subtract operations, not a physical concentration cutoff.
-The 5e-11 relative tolerance and the original budget/bounds guards remain.
-Both raw and underflow-adjusted residual metrics are retained.
+----------
 
-Local replay reproduces the old failure and accepts the repaired step. The
-candidate is bitwise identical to the uploaded candidate and old local
-solve; no scalar values are changed by this repair. Its one-step freshwater
-budget residual is 5.28e-28 m3. Deliberate errors in a populated cell and in
-the tiny tail still fail. The supplied replay data and script reproduce this
-test; detailed metrics are in analysis/underflow_audit.json.
+The matrix, right-hand side, LU solve and three refinement steps are unchanged.
+For a row with n stored matrix terms, the residual check permits an absolute
+roundoff allowance of (2*n + 1) times the smallest float64 subnormal. This follows
+from the row operations and is not a concentration cutoff. The relative tolerance,
+budget checks and bounds checks are unchanged. Raw and adjusted residuals are both
+recorded.
 
-Restart and provenance
-The bundled checkpoint and its sibling CSV and initial field are exact
-copies of the original accepted files. No checkpoint arrays, identity
-hashes or historical field hashes are rewritten. The repaired solver
-explicitly recognises only the exact reviewed parent source for this case,
-with every other mesh, DOF, physical, time, target and environment identity
-item required to match. It then uses the unchanged checkpoint loader.
-Original source identity remains in the historical field and is recorded
-in restart configuration/segments; new checkpoints record the new source.
-The carried budget stops at step 2000, discarding the uncheckpointed tail.
+Restart compatibility
+---------------------
 
-Next action
-Resume the same 200736-cell, dt = 0.0005 s test from 1 s to its existing
-5 s review stop. There are 8000 accepted steps remaining, approximately
-27 hours at the measured 12.2 s per step. A later interruption can resume
-again without losing the absolute 5 s stop. Exit 75 at that point is expected.
+The bundled checkpoint, budget CSV and initial field are unchanged copies of the
+accepted files. Compatibility with the repaired source is limited to the reviewed
+parent source; mesh, DOF, physical, timing and environment metadata must still
+match. Historical source hashes remain in the restart record, and new checkpoints
+record the repaired source.
 
-This return contains no 2 s or 5 s comparison field, so it adds no completed
-mesh/time-step convergence comparison. Hold the 50 s continuation until the
-5 s repair return can be compared with the existing fine and extra-fine runs.
-This is completion of the same unfinished test, not an additional refinement.
+Validation
+----------
 
-Validation limits
-Local validation covers the exact saved scalar failure, guard sensitivity,
-checkpoint identity/history, solver self-tests, launcher control paths and
-return packing. Legacy FEniCS is unavailable locally, so the coupled resumed
-trajectory has not been run here. The launcher runs the scalar replay and
-the existing coupled coarse uninterrupted/restart gate on Blue Pebble before
-starting production. It must also reconstruct and validate the actual mesh
-and DOF identity before loading the accepted checkpoint.
+Local replay triggers the old failure and accepts the unchanged scalar candidate
+with the corrected check. Injected errors in a populated cell and in the
+small-concentration tail remain rejected. Before resuming on Blue Pebble, the
+launcher repeats the scalar replay, coupled restart check and mesh/DOF identity
+check.

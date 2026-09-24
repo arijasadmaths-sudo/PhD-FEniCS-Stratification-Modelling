@@ -1,7 +1,11 @@
-# Full-height reference source
+# Archived full-height 3D reference source
 
-Earlier 600 x 300 x 300 mm source for the full-height formulation described in Section 6.6.5 and Appendix D.7. It uses the right-Jacobi mixed scalar solve, before the later equilibration and fine-startup changes.
+This directory contains the superseded full-height source and its matching scalar
+module, verifier and launcher. Keep the four files together.
 
-Keep these four files together. Set MESH_LEVEL=reference and DT=0.001 for the reference case, and use a new output directory. The supplied thesis reports fields through 36 s and a checkpoint at 36.197 s; the configured 120 s target is not an attained result.
+For the reference case, set `MESH_LEVEL=reference` and `DT=0.001`, and use a new
+output directory. Existing checkpoints require this source and its original
+settings.
 
-The analysis and plotting helpers are in `models/rectangular_3d_quantitative/` from the repository root. Existing checkpoints require the matching original sources and settings.
+Analysis and plotting utilities are in
+`models/rectangular_3d_quantitative/` from the repository root.
